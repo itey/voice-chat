@@ -56,7 +56,6 @@ def get_ai_response(user_text):
         print(f"GLM API Error: {e}")
         return "大脑连接超时，请检查大模型 API Key。"
 
-# 👇 找到这个函数，替换整个函数内容
 def generate_audio(text):
     url = "https://api.fish.audio/v1/tts"
     headers = {
@@ -71,19 +70,30 @@ def generate_audio(text):
         "latency": "normal" 
     }
     
+    # 1. 获取绝对路径并确保文件夹存在
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    static_dir = os.path.join(base_dir, "static")
+    
+    if not os.path.exists(static_dir):
+        try:
+            os.makedirs(static_dir)
+            print(f"✅ Created static dir at: {static_dir}")
+        except Exception as e:
+            print(f"❌ Failed to create static dir: {e}")
+            return None
+
     filename = f"speech_{int(time.time())}.mp3"
-    filepath = os.path.join("static", filename)
+    filepath = os.path.join(static_dir, filename)
 
     proxies = None
     if USE_PROXY:
         proxies = {"http": PROXY_URL, "https": PROXY_URL}
 
     try:
-        # ⚠️ 关键优化 1: stream=True (开启流式模式)
+        # 流式下载
         response = requests.post(url, json=data, headers=headers, timeout=60, proxies=proxies, stream=True)
         
         if response.status_code == 200:
-            # ⚠️ 关键优化 2: 分块写入，内存占用极低
             with open(filepath, "wb") as f:
                 for chunk in response.iter_content(chunk_size=1024):
                     if chunk:
@@ -91,10 +101,13 @@ def generate_audio(text):
             return filename
         else:
             print(f"Fish Audio Error: {response.status_code}")
+            print(response.text)
             return None
     except Exception as e:
-        print("System Error:", e)
+        print(f"System Error: {e}")
         return None
+
+
 
 @app.route('/')
 def index():
@@ -124,3 +137,4 @@ if __name__ == '__main__':
     if not os.path.exists('static'): os.makedirs('static')
     # Render 部署时不需要 debug=True
     app.run(host='0.0.0.0', port=5000)
+
