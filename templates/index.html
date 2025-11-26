@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Voice Chat</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入图标库 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- 自定义样式微调 -->
+    <style>
+        /* 滚动条美化 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #18181b; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+        
+        /* 消息淡入动画 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message-anim { animation: fadeIn 0.3s ease-out forwards; }
+        
+        /* 输入框聚焦发光效果 */
+        .focus-glow:focus-within {
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+            border-color: #52525b;
+        }
+    </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 h-screen flex flex-col font-sans antialiased overflow-hidden">
+
+    <!-- 顶部导航栏 -->
+    <header class="h-14 border-b border-zinc-800 flex items-center justify-between px-6 bg-zinc-900/50 backdrop-blur-md fixed top-0 w-full z-10">
+        <div class="flex items-center gap-3">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
+            <span class="font-medium text-sm tracking-wide text-zinc-300">Fish Audio Model</span>
+        </div>
+        <div class="text-zinc-500 text-xs">
+            <i class="fa-solid fa-wifi mr-1"></i> 在线
+        </div>
+    </header>
+
+    <!-- 聊天内容区域 -->
+    <main id="chat-container" class="flex-1 overflow-y-auto p-4 sm:p-6 pt-20 pb-24 space-y-6 scroll-smooth">
+        
+        <!-- 欢迎消息 -->
+        <div class="flex gap-4 message-anim">
+            <div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-700 flex-shrink-0">
+                <i class="fa-solid fa-robot text-zinc-400 text-xs"></i>
+            </div>
+            <div class="max-w-[85%] sm:max-w-[70%]">
+                <div class="text-xs text-zinc-500 mb-1 ml-1">AI Assistant</div>
+                <div class="bg-zinc-800/50 border border-zinc-700/50 px-4 py-2.5 rounded-2xl rounded-tl-none text-sm leading-relaxed shadow-sm">
+                    你好！我是你的专属语音助手。我们可以开始聊天了，我会用克隆的声音回复你。
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 底部输入区域 -->
+    <div class="fixed bottom-0 w-full bg-zinc-950 border-t border-zinc-800 p-4 sm:p-6">
+        <div class="max-w-4xl mx-auto relative focus-glow bg-zinc-900 border border-zinc-800 rounded-xl transition-all duration-200">
+            <input type="text" id="user-input" 
+                class="w-full bg-transparent border-none text-sm px-4 py-3.5 focus:ring-0 placeholder-zinc-600 text-zinc-200"
+                placeholder="输入消息..." autocomplete="off">
+            
+            <button onclick="sendMessage()" id="send-btn" 
+                class="absolute right-2 top-1.5 p-2 bg-zinc-100 text-zinc-900 rounded-lg hover:bg-white hover:scale-105 transition-all duration-200 shadow-lg">
+                <i class="fa-solid fa-paper-plane text-xs"></i>
+            </button>
+        </div>
+        <div class="text-center mt-2">
+            <span class="text-[10px] text-zinc-600">Powered by Fish Audio & Python Flask</span>
+        </div>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        // 监听回车发送
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            // 1. 显示用户消息
+            addMessage(text, 'user');
+            userInput.value = '';
+            
+            // 禁用发送按钮，防止重复点击
+            sendBtn.disabled = true;
+            sendBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            try {
+                // 2. 显示一个“正在思考”的占位符
+                const loadingId = addLoadingIndicator();
+
+                // 3. 发送请求给后端
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+                const data = await response.json();
+
+                // 4. 移除 loading，显示 AI 回复
+                removeMessage(loadingId);
+                addMessage(data.reply, 'ai');
+
+                // 5. 播放语音
+                if (data.audio_url) {
+                    const audio = new Audio(data.audio_url);
+                    audio.play();
+                }
+
+            } catch (error) {
+                console.error(error);
+                addMessage("系统出错了，请检查控制台。", 'ai');
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                userInput.focus();
+            }
+        }
+
+        function addMessage(text, sender) {
+            const div = document.createElement('div');
+            div.className = 'flex gap-4 message-anim';
+            
+            if (sender === 'ai') {
+                div.innerHTML = `
+                    <div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-700 flex-shrink-0">
+                        <i class="fa-solid fa-robot text-zinc-400 text-xs"></i>
+                    </div>
+                    <div class="max-w-[85%] sm:max-w-[70%]">
+                        <div class="text-xs text-zinc-500 mb-1 ml-1">AI Assistant</div>
+                        <div class="bg-zinc-800/50 border border-zinc-700/50 px-4 py-2.5 rounded-2xl rounded-tl-none text-sm leading-relaxed shadow-sm text-zinc-200">
+                            ${text}
+                        </div>
+                    </div>
+                `;
+            } else {
+                div.className += ' flex-row-reverse';
+                div.innerHTML = `
+                    <div class="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center border border-zinc-200 flex-shrink-0 shadow-sm">
+                        <i class="fa-solid fa-user text-zinc-900 text-xs"></i>
+                    </div>
+                    <div class="max-w-[85%] sm:max-w-[70%]">
+                        <div class="bg-indigo-600 border border-indigo-500 px-4 py-2.5 rounded-2xl rounded-tr-none text-sm leading-relaxed shadow-md text-white">
+                            ${text}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            chatContainer.appendChild(div);
+            scrollToBottom();
+        }
+
+        function addLoadingIndicator() {
+            const id = 'loading-' + Date.now();
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = 'flex gap-4 message-anim';
+            div.innerHTML = `
+                <div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-700 flex-shrink-0">
+                    <i class="fa-solid fa-robot text-zinc-400 text-xs"></i>
+                </div>
+                <div class="flex items-center h-8">
+                    <div class="flex space-x-1">
+                        <div class="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-bounce" style="animation-delay: 0s"></div>
+                        <div class="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                        <div class="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+                    </div>
+                </div>
+            `;
+            chatContainer.appendChild(div);
+            scrollToBottom();
+            return id;
+        }
+
+        function removeMessage(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    </script>
+</body>
+</html>
