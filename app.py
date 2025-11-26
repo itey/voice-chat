@@ -22,7 +22,7 @@ if not MY_FISH_API_KEY or not ZHIPU_API_KEY:
 GLM_MODEL_CODE = "glm-4.6"
 
 # 3. AI 人设
-SYSTEM_PROMPT = "你是一个幽默风趣的语音助手。请用口语化的风格交谈，回复尽量简短（控制在50字以内），不要使用复杂的列表或代码符号。"
+SYSTEM_PROMPT = "你是一位年长的经验老成的智者。请用口语化的风格交谈，回复尽量简短（控制在50-100汉字以内），不要使用复杂的列表或代码符号。"
 
 # 4. 网络代理 (本地开发开VPN用，上线Render时设为False)
 # 技巧：也可以把这个开关放到 .env 里，更加灵活
@@ -137,4 +137,5 @@ if __name__ == '__main__':
     if not os.path.exists('static'): os.makedirs('static')
     # Render 部署时不需要 debug=True
     app.run(host='0.0.0.0', port=5000)
+
 
